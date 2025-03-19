@@ -112,7 +112,10 @@ const Index = () => {
   const handleTableFileUpload = async (file: File) => {
     try {
       const data = await parseFileData(file);
-      setTableData(data);
+      setTableData(prev => ({
+        ...data,
+        idColumnKey: prev.idColumnKey
+      }));
       
       if (data.columns.length === 0) {
         toast.error('No columns found in the file. Please check the format.');
@@ -148,64 +151,80 @@ const Index = () => {
     }));
     
     // If we have GeoJSON monopiles with the same ID column, we could link them here
-    if (geoJsonData && geoJsonIdColumn === columnKey) {
-      const monopiles = extractMonopilesFromGeoJson(geoJsonData, columnKey);
-      
-      // Merge the coordinates with the existing table data
-      setTableData(prev => {
-        const updatedRows = prev.rows.map(row => {
-          const match = monopiles.find(m => m[columnKey] === row[columnKey]);
-          if (match) {
-            return {
-              ...row,
-              lat: match.lat,
-              lng: match.lng
-            };
-          }
-          return row;
-        });
+    if (geoJsonData && geoJsonIdColumn && tableData.rows.length > 0) {
+      try {
+        const monopiles = extractMonopilesFromGeoJson(geoJsonData, geoJsonIdColumn);
         
-        return {
-          ...prev,
-          rows: updatedRows
-        };
-      });
+        // Merge the coordinates with the existing table data
+        setTableData(prev => {
+          const updatedRows = prev.rows.map(row => {
+            const match = monopiles.find(m => m[geoJsonIdColumn] === row[columnKey]);
+            if (match) {
+              return {
+                ...row,
+                lat: match.lat,
+                lng: match.lng
+              };
+            }
+            return row;
+          });
+          
+          return {
+            ...prev,
+            rows: updatedRows,
+            idColumnKey: columnKey
+          };
+        });
+      } catch (error) {
+        console.error('Error linking GeoJSON with table data:', error);
+        // Continue even if this fails
+      }
     }
+    
+    toast.success(`Selected "${columnKey}" as the ID column`);
   };
   
   // Handle ID column selection for GeoJSON data
   const handleGeoJsonIdColumnSelect = (columnKey: string | null) => {
     setGeoJsonIdColumn(columnKey);
     
-    if (columnKey && tableData.idColumnKey === columnKey && tableData.rows.length > 0) {
-      // Link the GeoJSON points with table data using the ID column
-      const monopiles = extractMonopilesFromGeoJson(geoJsonData!, columnKey);
-      
-      // Update table data with coordinates from GeoJSON
-      setTableData(prev => {
-        const updatedRows = prev.rows.map(row => {
-          const match = monopiles.find(m => m[columnKey] === row[columnKey]);
-          if (match) {
-            return {
-              ...row,
-              lat: match.lat,
-              lng: match.lng
-            };
-          }
-          return row;
+    if (columnKey && tableData.idColumnKey && tableData.rows.length > 0 && geoJsonData) {
+      try {
+        // Link the GeoJSON points with table data using the ID column
+        const monopiles = extractMonopilesFromGeoJson(geoJsonData, columnKey);
+        
+        // Update table data with coordinates from GeoJSON
+        setTableData(prev => {
+          const updatedRows = prev.rows.map(row => {
+            const match = monopiles.find(m => m[columnKey] === row[prev.idColumnKey || '']);
+            if (match) {
+              return {
+                ...row,
+                lat: match.lat,
+                lng: match.lng
+              };
+            }
+            return row;
+          });
+          
+          return {
+            ...prev,
+            rows: updatedRows
+          };
         });
         
-        return {
-          ...prev,
-          rows: updatedRows
-        };
-      });
+        toast.success('Linked GeoJSON data with table data');
+      } catch (error) {
+        console.error('Error linking GeoJSON with table data:', error);
+        toast.error('Failed to link GeoJSON with table data');
+      }
     }
   };
   
   // Handle monopile selection for manual map placement
   const handleMonopileSelect = (id: string) => {
     setSelectedMonopileId(id);
+    toast.info(`Select a location on the map for monopile ${id}`);
   };
   
   // Handle map click for placing monopiles

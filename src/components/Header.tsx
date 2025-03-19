@@ -19,9 +19,7 @@ const Header: React.FC<HeaderProps> = ({ searchQuery, onSearchChange }) => {
             className="h-10 object-contain" 
           />
           <div className="flex items-center gap-2">
-            <h1 className="text-xl font-medium text-boskalis-dark-blue">Marshalling Yard</h1>
-            <div className="h-6 w-px bg-border mx-1"></div>
-            <span className="text-sm text-muted-foreground">Dashboard</span>
+            <h1 className="text-xl font-medium text-boskalis-dark-blue">Marshalling Yard Dashboard</h1>
           </div>
         </div>
       </div>
@@ -31,7 +29,7 @@ const Header: React.FC<HeaderProps> = ({ searchQuery, onSearchChange }) => {
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
         <Input
           className="pl-10 py-6 bg-muted/30 border focus-visible:ring-1 focus-visible:ring-boskalis-light-blue text-lg"
-          placeholder="Search monopiles..."
+          placeholder="Search monopiles... (e.g. C51)"
           value={searchQuery}
           onChange={(e) => onSearchChange(e.target.value)}
         />

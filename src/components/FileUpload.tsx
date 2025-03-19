@@ -1,5 +1,5 @@
 
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { Upload, FileSpreadsheet, MapPin, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -48,6 +48,23 @@ const FileUpload: React.FC<FileUploadProps> = ({
   const [tableFileName, setTableFileName] = useState<string | null>(null);
   const [geoJsonFileName, setGeoJsonFileName] = useState<string | null>(null);
 
+  // Update selected ID column when tableColumns change
+  useEffect(() => {
+    if (tableColumns.length > 0 && !selectedIdColumn) {
+      const possibleIdColumns = tableColumns.filter(col => 
+        col.label.toLowerCase().includes('id') || 
+        col.label.toLowerCase().includes('code') ||
+        col.label.toLowerCase().includes('number')
+      );
+      
+      if (possibleIdColumns.length > 0) {
+        setSelectedIdColumn(possibleIdColumns[0].value);
+      } else if (tableColumns[0]) {
+        setSelectedIdColumn(tableColumns[0].value);
+      }
+    }
+  }, [tableColumns, selectedIdColumn]);
+
   const onTableDrop = useCallback((acceptedFiles: File[]) => {
     const file = acceptedFiles[0];
     if (!file) return;
@@ -59,6 +76,7 @@ const FileUpload: React.FC<FileUploadProps> = ({
     }
     
     setSelectedFile(file);
+    setTableFileName(file.name);
     
     // Process the file first to extract columns
     onTableFileUploaded(file);
@@ -81,8 +99,16 @@ const FileUpload: React.FC<FileUploadProps> = ({
     
     onGeoJsonFileUploaded(file);
     setGeoJsonFileName(file.name);
-    setIsGeoJsonDialogOpen(true);
-  }, [onGeoJsonFileUploaded]);
+    
+    // Only show the ID column selection dialog if there are properties to select from
+    setTimeout(() => {
+      if (geoJsonColumns.length > 0) {
+        setIsGeoJsonDialogOpen(true);
+      } else {
+        toast.info('No properties found in GeoJSON file to use as ID');
+      }
+    }, 500);
+  }, [onGeoJsonFileUploaded, geoJsonColumns]);
 
   const tableDropzone = useDropzone({
     onDrop: onTableDrop,
@@ -103,20 +129,26 @@ const FileUpload: React.FC<FileUploadProps> = ({
   });
 
   const handleConfirmTableFile = () => {
-    if (!selectedFile || !selectedIdColumn) return;
+    if (!selectedIdColumn) {
+      toast.error('Please select an ID column');
+      return;
+    }
     
     onIdColumnSelected(selectedIdColumn);
     setIsTableDialogOpen(false);
-    setTableFileName(selectedFile.name);
     
-    toast.success('Table file uploaded successfully');
+    toast.success(`Selected "${selectedIdColumn}" as the ID column`);
   };
 
   const handleConfirmGeoJsonIdColumn = () => {
     onGeoJsonIdColumnSelected(selectedGeoJsonIdColumn);
     setIsGeoJsonDialogOpen(false);
     
-    toast.success('GeoJSON ID column selected');
+    if (selectedGeoJsonIdColumn) {
+      toast.success(`Selected "${selectedGeoJsonIdColumn}" as the GeoJSON ID property`);
+    } else {
+      toast.info('No GeoJSON ID property selected');
+    }
   };
 
   return (

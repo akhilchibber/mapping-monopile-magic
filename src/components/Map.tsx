@@ -85,6 +85,25 @@ const Map: React.FC<MapProps> = ({
     mapInstance.on('load', () => {
       // Set initial OpenStreetMap style
       setMapStyle(mapInstance, selectedMapStyle);
+      
+      // If we already have GeoJSON data, add it to the map
+      if (geoJsonData) {
+        try {
+          addGeoJsonLayer(mapInstance, geoJsonData, geoJsonStyle);
+        } catch (error) {
+          console.error('Error adding GeoJSON layer on initial load:', error);
+        }
+      }
+      
+      // If we already have monopiles with coordinates, add them to the map
+      if (monopiles.length > 0 && tableIdColumn && monopiles.some(m => m.lat && m.lng)) {
+        try {
+          addMonopiles(mapInstance, monopiles, tableIdColumn, monopileStyle);
+        } catch (error) {
+          console.error('Error adding monopiles on initial load:', error);
+        }
+      }
+      
       toast.success('Map loaded successfully', { id: 'map-loaded' });
     });
     
@@ -123,10 +142,12 @@ const Map: React.FC<MapProps> = ({
 
   // Add GeoJSON data to map
   useEffect(() => {
-    if (!map.current || !geoJsonData) return;
+    if (!map.current || !map.current.loaded() || !geoJsonData) return;
     
+    console.log('Adding GeoJSON to map:', geoJsonData);
     try {
       addGeoJsonLayer(map.current, geoJsonData, geoJsonStyle);
+      toast.success('GeoJSON data displayed on map');
     } catch (error) {
       console.error('Error adding GeoJSON layer:', error);
       toast.error('Error displaying GeoJSON data. Please check the file format.');
@@ -135,30 +156,51 @@ const Map: React.FC<MapProps> = ({
 
   // Add monopiles to map
   useEffect(() => {
-    if (!map.current || !tableIdColumn || monopiles.length === 0) return;
+    if (!map.current || !map.current.loaded() || !tableIdColumn || monopiles.length === 0) return;
     
-    addMonopiles(map.current, monopiles, tableIdColumn, monopileStyle);
+    const validMonopiles = monopiles.filter(m => m.lat && m.lng);
+    console.log('Adding monopiles to map:', validMonopiles.length);
+    
+    if (validMonopiles.length > 0) {
+      try {
+        addMonopiles(map.current, monopiles, tableIdColumn, monopileStyle);
+      } catch (error) {
+        console.error('Error adding monopiles:', error);
+      }
+    }
   }, [monopiles, tableIdColumn, monopileStyle]);
 
   // Filter monopiles based on search
   useEffect(() => {
-    if (!map.current || !tableIdColumn || filteredIds.length === 0) return;
+    if (!map.current || !map.current.loaded() || !tableIdColumn || filteredIds.length === 0) return;
     
-    filterMonopilesByIds(map.current, filteredIds, tableIdColumn);
+    try {
+      filterMonopilesByIds(map.current, filteredIds, tableIdColumn);
+    } catch (error) {
+      console.error('Error filtering monopiles:', error);
+    }
   }, [filteredIds, tableIdColumn]);
 
   // Update GeoJSON style when changed
   useEffect(() => {
-    if (!map.current || !geoJsonData) return;
+    if (!map.current || !map.current.loaded() || !geoJsonData) return;
     
-    updateGeoJsonStyle(map.current, geoJsonStyle);
+    try {
+      updateGeoJsonStyle(map.current, geoJsonStyle);
+    } catch (error) {
+      console.error('Error updating GeoJSON style:', error);
+    }
   }, [geoJsonStyle, geoJsonData]);
 
   // Update monopile style when changed
   useEffect(() => {
-    if (!map.current || monopiles.length === 0) return;
+    if (!map.current || !map.current.loaded() || monopiles.length === 0) return;
     
-    updateMonopileStyle(map.current, monopileStyle);
+    try {
+      updateMonopileStyle(map.current, monopileStyle);
+    } catch (error) {
+      console.error('Error updating monopile style:', error);
+    }
   }, [monopileStyle, monopiles]);
 
   const handleGeoJsonStyleChange = (style: MapStyle) => {

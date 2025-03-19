@@ -21,7 +21,11 @@ export interface MonopileStyle {
 export const createMap = (container: HTMLElement): maplibregl.Map => {
   return new maplibregl.Map({
     container,
-    style: 'https://demotiles.maplibre.org/style.json', // Will be replaced with OpenStreetMap
+    style: {
+      version: 8,
+      sources: {},
+      layers: []
+    },
     center: [0, 20],
     zoom: 2,
     minZoom: 1,
@@ -39,8 +43,12 @@ export const addGeoJsonLayer = (
 ): void => {
   // First remove existing layers if they exist
   if (map.getSource('geojson-data')) {
-    map.removeLayer('geojson-fill-layer');
-    map.removeLayer('geojson-line-layer');
+    if (map.getLayer('geojson-fill-layer')) {
+      map.removeLayer('geojson-fill-layer');
+    }
+    if (map.getLayer('geojson-line-layer')) {
+      map.removeLayer('geojson-line-layer');
+    }
     map.removeSource('geojson-data');
   }
 
@@ -49,7 +57,7 @@ export const addGeoJsonLayer = (
     data: geojson
   });
 
-  // Add a fill layer
+  // Add a fill layer for polygons
   map.addLayer({
     id: 'geojson-fill-layer',
     type: 'fill',
@@ -61,7 +69,7 @@ export const addGeoJsonLayer = (
     filter: ['==', '$type', 'Polygon']
   });
 
-  // Add a line layer
+  // Add a line layer for all geometries
   map.addLayer({
     id: 'geojson-line-layer',
     type: 'line',
@@ -76,21 +84,45 @@ export const addGeoJsonLayer = (
   // Fit bounds to the GeoJSON data with padding
   try {
     const bounds = new maplibregl.LngLatBounds();
+    let hasValidFeatures = false;
+
     geojson.features.forEach(feature => {
+      if (!feature.geometry) return;
+      
       if (feature.geometry.type === 'Point') {
         const pointGeom = feature.geometry as GeoJSON.Point;
-        bounds.extend(pointGeom.coordinates as [number, number]);
+        if (pointGeom.coordinates && pointGeom.coordinates.length >= 2) {
+          bounds.extend(pointGeom.coordinates as [number, number]);
+          hasValidFeatures = true;
+        }
       } else if (feature.geometry.type === 'Polygon') {
         const polygonGeom = feature.geometry as GeoJSON.Polygon;
-        polygonGeom.coordinates[0].forEach(coord => bounds.extend(coord as [number, number]));
+        if (polygonGeom.coordinates && polygonGeom.coordinates.length > 0) {
+          polygonGeom.coordinates[0].forEach(coord => {
+            if (coord && coord.length >= 2) {
+              bounds.extend(coord as [number, number]);
+              hasValidFeatures = true;
+            }
+          });
+        }
       } else if (feature.geometry.type === 'LineString') {
         const lineGeom = feature.geometry as GeoJSON.LineString;
-        lineGeom.coordinates.forEach(coord => bounds.extend(coord as [number, number]));
+        if (lineGeom.coordinates) {
+          lineGeom.coordinates.forEach(coord => {
+            if (coord && coord.length >= 2) {
+              bounds.extend(coord as [number, number]);
+              hasValidFeatures = true;
+            }
+          });
+        }
       }
     });
     
-    if (!bounds.isEmpty()) {
+    if (hasValidFeatures && !bounds.isEmpty()) {
       map.fitBounds(bounds, { padding: 50 });
+      console.log('Fitted bounds to GeoJSON data');
+    } else {
+      console.warn('No valid geometries found in GeoJSON');
     }
   } catch (error) {
     console.error('Error fitting bounds:', error);
@@ -243,18 +275,26 @@ export const extractMonopilesFromGeoJson = (
   geojson: GeoJSON.FeatureCollection,
   idColumnKey: string
 ): Monopile[] => {
-  return geojson.features
-    .filter(feature => feature.geometry.type === 'Point')
+  const result = geojson.features
+    .filter(feature => feature.geometry && feature.geometry.type === 'Point')
     .map(feature => {
       const pointGeom = feature.geometry as GeoJSON.Point;
+      if (!pointGeom.coordinates || pointGeom.coordinates.length < 2) {
+        throw new Error('Invalid point coordinates in GeoJSON');
+      }
       const coordinates = pointGeom.coordinates as [number, number];
+      const properties = feature.properties || {};
+      
       return {
-        id: feature.properties?.[idColumnKey] || 'unknown',
-        ...feature.properties,
+        id: properties[idColumnKey] || 'unknown',
+        ...properties,
         lat: coordinates[1],
         lng: coordinates[0]
       };
     });
+    
+  console.log(`Extracted ${result.length} monopiles from GeoJSON`);
+  return result;
 };
 
 /**
@@ -294,7 +334,7 @@ export const setMapStyle = (map: maplibregl.Map, styleId: string): void => {
   const style = MAP_STYLES.find(s => s.id === styleId);
   if (!style) return;
   
-  // Remove existing raster sources and layers
+  // First remove any existing raster sources and layers
   if (map.getSource('osm-tiles')) {
     map.removeLayer('osm-layer');
     map.removeSource('osm-tiles');
@@ -308,12 +348,12 @@ export const setMapStyle = (map: maplibregl.Map, styleId: string): void => {
     attribution: style.attribution
   });
 
-  // Add new raster layer
+  // Add new raster layer at the bottom of the layer stack
   map.addLayer({
     id: 'osm-layer',
     type: 'raster',
     source: 'osm-tiles',
     minzoom: 0,
     maxzoom: 19
-  }, map.getLayer('geojson-fill-layer') ? 'geojson-fill-layer' : undefined);
+  }, map.getStyle().layers[0]?.id || undefined);
 };
