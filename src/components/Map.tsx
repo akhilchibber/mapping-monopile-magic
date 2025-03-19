@@ -2,11 +2,10 @@
 import React, { useEffect, useRef, useState } from 'react';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
-import { MapPin, Layers } from 'lucide-react';
+import { MapPin, Layers, Map as MapIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import StyleControls from './StyleControls';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { 
   createMap, 
   addGeoJsonLayer, 
@@ -14,9 +13,23 @@ import {
   addMonopiles,
   updateMonopileStyle,
   filterMonopilesByIds,
+  setMapStyle,
+  MAP_STYLES,
   MapStyle,
   MonopileStyle
 } from '@/utils/mapUtils';
+import { 
+  Popover, 
+  PopoverContent, 
+  PopoverTrigger 
+} from '@/components/ui/popover';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import type { Monopile } from '@/utils/dataUtils';
 
 interface MapProps {
@@ -43,6 +56,7 @@ const Map: React.FC<MapProps> = ({
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<maplibregl.Map | null>(null);
   const [showStyleSettings, setShowStyleSettings] = useState(false);
+  const [selectedMapStyle, setSelectedMapStyle] = useState('osm-standard');
   
   // Default styles
   const [geoJsonStyle, setGeoJsonStyle] = useState<MapStyle>({
@@ -69,7 +83,8 @@ const Map: React.FC<MapProps> = ({
     mapInstance.addControl(new maplibregl.NavigationControl(), 'top-right');
     
     mapInstance.on('load', () => {
-      // Map is ready
+      // Set initial OpenStreetMap style
+      setMapStyle(mapInstance, selectedMapStyle);
       toast.success('Map loaded successfully', { id: 'map-loaded' });
     });
     
@@ -100,11 +115,22 @@ const Map: React.FC<MapProps> = ({
     };
   }, [hasGeoJson, onMapClick, selectedMonopileId]);
 
+  // Update map style when changed
+  useEffect(() => {
+    if (!map.current || !map.current.loaded()) return;
+    setMapStyle(map.current, selectedMapStyle);
+  }, [selectedMapStyle]);
+
   // Add GeoJSON data to map
   useEffect(() => {
     if (!map.current || !geoJsonData) return;
     
-    addGeoJsonLayer(map.current, geoJsonData, geoJsonStyle);
+    try {
+      addGeoJsonLayer(map.current, geoJsonData, geoJsonStyle);
+    } catch (error) {
+      console.error('Error adding GeoJSON layer:', error);
+      toast.error('Error displaying GeoJSON data. Please check the file format.');
+    }
   }, [geoJsonData, geoJsonStyle]);
 
   // Add monopiles to map
@@ -143,6 +169,10 @@ const Map: React.FC<MapProps> = ({
     setMonopileStyle(style);
   };
 
+  const handleMapStyleChange = (styleId: string) => {
+    setSelectedMapStyle(styleId);
+  };
+
   return (
     <div className="relative h-full w-full">
       <div ref={mapContainer} className="h-full w-full rounded-lg overflow-hidden" />
@@ -160,13 +190,34 @@ const Map: React.FC<MapProps> = ({
             </Button>
           </PopoverTrigger>
           <PopoverContent className="w-80 p-4" align="start">
-            <StyleControls 
-              hasGeoJson={!!geoJsonData}
-              geoJsonStyle={geoJsonStyle}
-              monopileStyle={monopileStyle}
-              onGeoJsonStyleChange={handleGeoJsonStyleChange}
-              onMonopileStyleChange={handleMonopileStyleChange}
-            />
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <h3 className="font-medium">Map Style</h3>
+                <Select
+                  value={selectedMapStyle}
+                  onValueChange={handleMapStyleChange}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select a map style" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {MAP_STYLES.map((style) => (
+                      <SelectItem key={style.id} value={style.id}>
+                        {style.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <StyleControls 
+                hasGeoJson={!!geoJsonData}
+                geoJsonStyle={geoJsonStyle}
+                monopileStyle={monopileStyle}
+                onGeoJsonStyleChange={handleGeoJsonStyleChange}
+                onMonopileStyleChange={handleMonopileStyleChange}
+              />
+            </div>
           </PopoverContent>
         </Popover>
       </div>

@@ -113,6 +113,10 @@ const Index = () => {
     try {
       const data = await parseFileData(file);
       setTableData(data);
+      
+      if (data.columns.length === 0) {
+        toast.error('No columns found in the file. Please check the format.');
+      }
     } catch (error) {
       console.error('Error parsing table file:', error);
       toast.error('Failed to parse the file. Please check the format.');
@@ -260,16 +264,14 @@ const Index = () => {
         onSearchChange={setSearchQuery} 
       />
       
-      <div className="p-4">
-        <FileUpload 
-          onTableFileUploaded={handleTableFileUpload}
-          onGeoJsonFileUploaded={handleGeoJsonFileUpload}
-          onIdColumnSelected={handleIdColumnSelect}
-          onGeoJsonIdColumnSelected={handleGeoJsonIdColumnSelect}
-          tableColumns={tableData.columns}
-          geoJsonColumns={geoJsonColumns}
-        />
-      </div>
+      <FileUpload 
+        onTableFileUploaded={handleTableFileUpload}
+        onGeoJsonFileUploaded={handleGeoJsonFileUpload}
+        onIdColumnSelected={handleIdColumnSelect}
+        onGeoJsonIdColumnSelected={handleGeoJsonIdColumnSelect}
+        tableColumns={tableData.columns}
+        geoJsonColumns={geoJsonColumns}
+      />
       
       <div 
         ref={resizableRef}

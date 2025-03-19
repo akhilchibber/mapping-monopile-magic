@@ -1,7 +1,7 @@
 
 import React, { useCallback, useState } from 'react';
 import { useDropzone } from 'react-dropzone';
-import { Upload, File, MapPin } from 'lucide-react';
+import { Upload, FileSpreadsheet, MapPin, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import {
@@ -21,6 +21,7 @@ import {
 } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { ColumnOption } from '@/utils/dataUtils';
+import { Badge } from '@/components/ui/badge';
 
 interface FileUploadProps {
   onTableFileUploaded: (file: File) => void;
@@ -44,6 +45,8 @@ const FileUpload: React.FC<FileUploadProps> = ({
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [selectedIdColumn, setSelectedIdColumn] = useState<string>('');
   const [selectedGeoJsonIdColumn, setSelectedGeoJsonIdColumn] = useState<string | null>(null);
+  const [tableFileName, setTableFileName] = useState<string | null>(null);
+  const [geoJsonFileName, setGeoJsonFileName] = useState<string | null>(null);
 
   const onTableDrop = useCallback((acceptedFiles: File[]) => {
     const file = acceptedFiles[0];
@@ -56,8 +59,15 @@ const FileUpload: React.FC<FileUploadProps> = ({
     }
     
     setSelectedFile(file);
-    setIsTableDialogOpen(true);
-  }, []);
+    
+    // Process the file first to extract columns
+    onTableFileUploaded(file);
+    
+    // Then open the dialog to select the ID column
+    setTimeout(() => {
+      setIsTableDialogOpen(true);
+    }, 500);
+  }, [onTableFileUploaded]);
 
   const onGeoJsonDrop = useCallback((acceptedFiles: File[]) => {
     const file = acceptedFiles[0];
@@ -70,6 +80,7 @@ const FileUpload: React.FC<FileUploadProps> = ({
     }
     
     onGeoJsonFileUploaded(file);
+    setGeoJsonFileName(file.name);
     setIsGeoJsonDialogOpen(true);
   }, [onGeoJsonFileUploaded]);
 
@@ -94,9 +105,9 @@ const FileUpload: React.FC<FileUploadProps> = ({
   const handleConfirmTableFile = () => {
     if (!selectedFile || !selectedIdColumn) return;
     
-    onTableFileUploaded(selectedFile);
     onIdColumnSelected(selectedIdColumn);
     setIsTableDialogOpen(false);
+    setTableFileName(selectedFile.name);
     
     toast.success('Table file uploaded successfully');
   };
@@ -109,38 +120,52 @@ const FileUpload: React.FC<FileUploadProps> = ({
   };
 
   return (
-    <div className="flex flex-col gap-4 p-4 glass-panel rounded-lg animate-scale-in">
-      <h2 className="text-lg font-medium text-boskalis-dark-blue">Upload Files</h2>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Table File Upload */}
-        <div 
-          {...tableDropzone.getRootProps()} 
-          className={`upload-dropzone ${tableDropzone.isDragActive ? 'active' : ''}`}
-        >
+    <div className="flex justify-end gap-2 py-1 px-4">
+      {/* Show file badges if files are uploaded */}
+      <div className="flex-1 flex items-center gap-2">
+        {tableFileName && (
+          <Badge variant="secondary" className="gap-1 py-1">
+            <FileSpreadsheet className="h-3 w-3" />
+            {tableFileName}
+          </Badge>
+        )}
+        
+        {geoJsonFileName && (
+          <Badge variant="secondary" className="gap-1 py-1">
+            <MapPin className="h-3 w-3" />
+            {geoJsonFileName}
+          </Badge>
+        )}
+      </div>
+      
+      {/* Compact upload buttons */}
+      <Button
+        size="sm"
+        variant="outline"
+        onClick={() => tableDropzone.open()}
+        className="gap-1"
+      >
+        <FileSpreadsheet className="h-4 w-4" /> 
+        Upload Excel/CSV
+      </Button>
+      
+      <Button
+        size="sm"
+        variant="outline"
+        onClick={() => geoJsonDropzone.open()}
+        className="gap-1"
+      >
+        <MapPin className="h-4 w-4" /> 
+        Upload GeoJSON
+      </Button>
+      
+      {/* Hidden dropzones */}
+      <div className="hidden">
+        <div {...tableDropzone.getRootProps()}>
           <input {...tableDropzone.getInputProps()} />
-          <div className="flex flex-col items-center gap-2">
-            <div className="p-2 rounded-full bg-boskalis-light-blue/10 text-boskalis-light-blue">
-              <File className="h-6 w-6" />
-            </div>
-            <p className="text-sm font-medium">Upload CSV or Excel</p>
-            <p className="text-xs text-muted-foreground">Drag & drop or click to browse</p>
-          </div>
         </div>
-
-        {/* GeoJSON File Upload */}
-        <div 
-          {...geoJsonDropzone.getRootProps()} 
-          className={`upload-dropzone ${geoJsonDropzone.isDragActive ? 'active' : ''}`}
-        >
+        <div {...geoJsonDropzone.getRootProps()}>
           <input {...geoJsonDropzone.getInputProps()} />
-          <div className="flex flex-col items-center gap-2">
-            <div className="p-2 rounded-full bg-boskalis-orange/10 text-boskalis-orange">
-              <MapPin className="h-6 w-6" />
-            </div>
-            <p className="text-sm font-medium">Upload GeoJSON</p>
-            <p className="text-xs text-muted-foreground">Drag & drop or click to browse</p>
-          </div>
         </div>
       </div>
 
@@ -166,11 +191,15 @@ const FileUpload: React.FC<FileUploadProps> = ({
                 <SelectValue placeholder="Select a column" />
               </SelectTrigger>
               <SelectContent>
-                {tableColumns.map((column) => (
-                  <SelectItem key={column.value} value={column.value}>
-                    {column.label}
-                  </SelectItem>
-                ))}
+                {tableColumns.length > 0 ? (
+                  tableColumns.map((column) => (
+                    <SelectItem key={column.value} value={column.value}>
+                      {column.label}
+                    </SelectItem>
+                  ))
+                ) : (
+                  <SelectItem value="no-columns" disabled>No columns found</SelectItem>
+                )}
               </SelectContent>
             </Select>
           </div>
@@ -184,7 +213,7 @@ const FileUpload: React.FC<FileUploadProps> = ({
             </Button>
             <Button 
               onClick={handleConfirmTableFile}
-              disabled={!selectedIdColumn}
+              disabled={!selectedIdColumn || tableColumns.length === 0}
             >
               Confirm
             </Button>
@@ -207,14 +236,14 @@ const FileUpload: React.FC<FileUploadProps> = ({
               GeoJSON ID Property (Optional)
             </Label>
             <Select 
-              value={selectedGeoJsonIdColumn || ''} 
-              onValueChange={setSelectedGeoJsonIdColumn}
+              value={selectedGeoJsonIdColumn || "none"} 
+              onValueChange={(value) => setSelectedGeoJsonIdColumn(value === "none" ? null : value)}
             >
               <SelectTrigger className="w-full" id="geojson-id-column">
                 <SelectValue placeholder="Select a property (optional)" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">None</SelectItem>
+                <SelectItem value="none">None</SelectItem>
                 {geoJsonColumns.map((column) => (
                   <SelectItem key={column.value} value={column.value}>
                     {column.label}

@@ -21,7 +21,7 @@ export interface MonopileStyle {
 export const createMap = (container: HTMLElement): maplibregl.Map => {
   return new maplibregl.Map({
     container,
-    style: 'https://demotiles.maplibre.org/style.json',
+    style: 'https://demotiles.maplibre.org/style.json', // Will be replaced with OpenStreetMap
     center: [0, 20],
     zoom: 2,
     minZoom: 1,
@@ -78,14 +78,14 @@ export const addGeoJsonLayer = (
     const bounds = new maplibregl.LngLatBounds();
     geojson.features.forEach(feature => {
       if (feature.geometry.type === 'Point') {
-        const coordinates = feature.geometry.coordinates as [number, number];
-        bounds.extend(coordinates);
+        const pointGeom = feature.geometry as GeoJSON.Point;
+        bounds.extend(pointGeom.coordinates as [number, number]);
       } else if (feature.geometry.type === 'Polygon') {
-        const coordinates = feature.geometry.coordinates[0] as [number, number][];
-        coordinates.forEach(coord => bounds.extend(coord));
+        const polygonGeom = feature.geometry as GeoJSON.Polygon;
+        polygonGeom.coordinates[0].forEach(coord => bounds.extend(coord as [number, number]));
       } else if (feature.geometry.type === 'LineString') {
-        const coordinates = feature.geometry.coordinates as [number, number][];
-        coordinates.forEach(coord => bounds.extend(coord));
+        const lineGeom = feature.geometry as GeoJSON.LineString;
+        lineGeom.coordinates.forEach(coord => bounds.extend(coord as [number, number]));
       }
     });
     
@@ -246,7 +246,8 @@ export const extractMonopilesFromGeoJson = (
   return geojson.features
     .filter(feature => feature.geometry.type === 'Point')
     .map(feature => {
-      const coordinates = feature.geometry.coordinates as [number, number];
+      const pointGeom = feature.geometry as GeoJSON.Point;
+      const coordinates = pointGeom.coordinates as [number, number];
       return {
         id: feature.properties?.[idColumnKey] || 'unknown',
         ...feature.properties,
@@ -254,4 +255,65 @@ export const extractMonopilesFromGeoJson = (
         lng: coordinates[0]
       };
     });
+};
+
+/**
+ * Available map styles for OpenStreetMap
+ */
+export const MAP_STYLES = [
+  { 
+    id: 'osm-standard', 
+    name: 'OpenStreetMap Standard', 
+    url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+  },
+  { 
+    id: 'osm-carto', 
+    name: 'OSM Carto', 
+    url: 'https://cartodb-basemaps-a.global.ssl.fastly.net/light_all/{z}/{x}/{y}.png',
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, &copy; <a href="https://carto.com/attribution">CARTO</a>'
+  },
+  { 
+    id: 'osm-topo', 
+    name: 'OSM Topo', 
+    url: 'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, &copy; <a href="https://opentopomap.org">OpenTopoMap</a>'
+  },
+  { 
+    id: 'osm-humanitarian', 
+    name: 'OSM Humanitarian', 
+    url: 'https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png',
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, <a href="https://www.hotosm.org/">Humanitarian OpenStreetMap Team</a>'
+  }
+];
+
+/**
+ * Sets the map's base tile layer
+ */
+export const setMapStyle = (map: maplibregl.Map, styleId: string): void => {
+  const style = MAP_STYLES.find(s => s.id === styleId);
+  if (!style) return;
+  
+  // Remove existing raster sources and layers
+  if (map.getSource('osm-tiles')) {
+    map.removeLayer('osm-layer');
+    map.removeSource('osm-tiles');
+  }
+
+  // Add new raster source
+  map.addSource('osm-tiles', {
+    type: 'raster',
+    tiles: [style.url.replace('{s}', 'a')],
+    tileSize: 256,
+    attribution: style.attribution
+  });
+
+  // Add new raster layer
+  map.addLayer({
+    id: 'osm-layer',
+    type: 'raster',
+    source: 'osm-tiles',
+    minzoom: 0,
+    maxzoom: 19
+  }, map.getLayer('geojson-fill-layer') ? 'geojson-fill-layer' : undefined);
 };
