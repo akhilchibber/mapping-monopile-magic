@@ -92,6 +92,7 @@ const Map: React.FC<MapProps> = ({
           addGeoJsonLayer(mapInstance, geoJsonData, geoJsonStyle);
         } catch (error) {
           console.error('Error adding GeoJSON layer on initial load:', error);
+          toast.error('Error visualizing GeoJSON data');
         }
       }
       
@@ -145,6 +146,19 @@ const Map: React.FC<MapProps> = ({
     if (!map.current || !map.current.loaded() || !geoJsonData) return;
     
     console.log('Adding GeoJSON to map:', geoJsonData);
+    
+    // Log feature types for debugging
+    if (geoJsonData.features.length > 0) {
+      const geometryTypes = geoJsonData.features
+        .map(f => f.geometry?.type || 'unknown')
+        .reduce((acc, type) => {
+          acc[type] = (acc[type] || 0) + 1;
+          return acc;
+        }, {} as Record<string, number>);
+      
+      console.log('GeoJSON geometry types:', geometryTypes);
+    }
+    
     try {
       addGeoJsonLayer(map.current, geoJsonData, geoJsonStyle);
       toast.success('GeoJSON data displayed on map');

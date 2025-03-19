@@ -1,4 +1,3 @@
-
 import maplibregl from 'maplibre-gl';
 import type { Monopile } from './dataUtils';
 
@@ -49,6 +48,9 @@ export const addGeoJsonLayer = (
     if (map.getLayer('geojson-line-layer')) {
       map.removeLayer('geojson-line-layer');
     }
+    if (map.getLayer('geojson-point-layer')) {
+      map.removeLayer('geojson-point-layer');
+    }
     map.removeSource('geojson-data');
   }
 
@@ -69,7 +71,7 @@ export const addGeoJsonLayer = (
     filter: ['==', '$type', 'Polygon']
   });
 
-  // Add a line layer for all geometries
+  // Add a line layer for polylines
   map.addLayer({
     id: 'geojson-line-layer',
     type: 'line',
@@ -79,6 +81,19 @@ export const addGeoJsonLayer = (
       'line-width': style.width,
       'line-opacity': style.opacity
     }
+  });
+
+  // Add a circle layer for points
+  map.addLayer({
+    id: 'geojson-point-layer',
+    type: 'circle',
+    source: 'geojson-data',
+    paint: {
+      'circle-radius': style.width * 2,
+      'circle-color': style.color,
+      'circle-opacity': style.opacity
+    },
+    filter: ['==', '$type', 'Point']
   });
 
   // Fit bounds to the GeoJSON data with padding
@@ -92,7 +107,7 @@ export const addGeoJsonLayer = (
       if (feature.geometry.type === 'Point') {
         const pointGeom = feature.geometry as GeoJSON.Point;
         if (pointGeom.coordinates && pointGeom.coordinates.length >= 2) {
-          bounds.extend(pointGeom.coordinates as [number, number]);
+          bounds.extend([pointGeom.coordinates[0], pointGeom.coordinates[1]]);
           hasValidFeatures = true;
         }
       } else if (feature.geometry.type === 'Polygon') {
@@ -100,7 +115,7 @@ export const addGeoJsonLayer = (
         if (polygonGeom.coordinates && polygonGeom.coordinates.length > 0) {
           polygonGeom.coordinates[0].forEach(coord => {
             if (coord && coord.length >= 2) {
-              bounds.extend(coord as [number, number]);
+              bounds.extend([coord[0], coord[1]]);
               hasValidFeatures = true;
             }
           });
@@ -110,9 +125,43 @@ export const addGeoJsonLayer = (
         if (lineGeom.coordinates) {
           lineGeom.coordinates.forEach(coord => {
             if (coord && coord.length >= 2) {
-              bounds.extend(coord as [number, number]);
+              bounds.extend([coord[0], coord[1]]);
               hasValidFeatures = true;
             }
+          });
+        }
+      } else if (feature.geometry.type === 'MultiPoint') {
+        const multiPointGeom = feature.geometry as GeoJSON.MultiPoint;
+        if (multiPointGeom.coordinates) {
+          multiPointGeom.coordinates.forEach(coord => {
+            if (coord && coord.length >= 2) {
+              bounds.extend([coord[0], coord[1]]);
+              hasValidFeatures = true;
+            }
+          });
+        }
+      } else if (feature.geometry.type === 'MultiLineString') {
+        const multiLineGeom = feature.geometry as GeoJSON.MultiLineString;
+        if (multiLineGeom.coordinates) {
+          multiLineGeom.coordinates.forEach(line => {
+            line.forEach(coord => {
+              if (coord && coord.length >= 2) {
+                bounds.extend([coord[0], coord[1]]);
+                hasValidFeatures = true;
+              }
+            });
+          });
+        }
+      } else if (feature.geometry.type === 'MultiPolygon') {
+        const multiPolygonGeom = feature.geometry as GeoJSON.MultiPolygon;
+        if (multiPolygonGeom.coordinates) {
+          multiPolygonGeom.coordinates.forEach(polygon => {
+            polygon[0].forEach(coord => {
+              if (coord && coord.length >= 2) {
+                bounds.extend([coord[0], coord[1]]);
+                hasValidFeatures = true;
+              }
+            });
           });
         }
       }
@@ -143,6 +192,9 @@ export const updateGeoJsonStyle = (
   map.setPaintProperty('geojson-line-layer', 'line-color', style.color);
   map.setPaintProperty('geojson-line-layer', 'line-width', style.width);
   map.setPaintProperty('geojson-line-layer', 'line-opacity', style.opacity);
+  map.setPaintProperty('geojson-point-layer', 'circle-color', style.color);
+  map.setPaintProperty('geojson-point-layer', 'circle-radius', style.width * 2);
+  map.setPaintProperty('geojson-point-layer', 'circle-opacity', style.opacity);
 };
 
 /**
