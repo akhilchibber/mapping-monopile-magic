@@ -179,6 +179,58 @@ export const addGeoJsonLayer = (
 };
 
 /**
+ * Filters GeoJSON features by property values without recentering the map
+ */
+export const filterGeoJsonByProperty = (
+  map: maplibregl.Map,
+  propertyKey: string,
+  propertyValues: string[]
+): void => {
+  if (!map.getSource('geojson-data')) return;
+
+  const layers = ['geojson-fill-layer', 'geojson-line-layer', 'geojson-point-layer'];
+  
+  if (propertyValues.length === 0) {
+    // Show all features if no filter values provided
+    layers.forEach(layerId => {
+      if (map.getLayer(layerId)) {
+        if (layerId === 'geojson-point-layer') {
+          map.setFilter(layerId, ['==', '$type', 'Point']);
+        } else if (layerId === 'geojson-fill-layer') {
+          map.setFilter(layerId, ['==', '$type', 'Polygon']);
+        } else {
+          map.setFilter(layerId, null);
+        }
+      }
+    });
+  } else {
+    // Apply filter to each layer
+    layers.forEach(layerId => {
+      if (map.getLayer(layerId)) {
+        let baseFilter;
+        
+        if (layerId === 'geojson-point-layer') {
+          baseFilter = ['==', '$type', 'Point'];
+        } else if (layerId === 'geojson-fill-layer') {
+          baseFilter = ['==', '$type', 'Polygon'];
+        } else {
+          baseFilter = null;
+        }
+        
+        // Create a filter that combines the base filter with property filter
+        const propertyFilter = ['in', ['get', propertyKey], ['literal', propertyValues]];
+        
+        if (baseFilter) {
+          map.setFilter(layerId, ['all', baseFilter, propertyFilter]);
+        } else {
+          map.setFilter(layerId, propertyFilter);
+        }
+      }
+    });
+  }
+};
+
+/**
  * Updates the style of the GeoJSON layers
  */
 export const updateGeoJsonStyle = (

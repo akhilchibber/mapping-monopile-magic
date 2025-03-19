@@ -16,7 +16,8 @@ import {
   setMapStyle,
   MAP_STYLES,
   MapStyle,
-  MonopileStyle
+  MonopileStyle,
+  filterGeoJsonByProperty
 } from '@/utils/mapUtils';
 import { 
   Popover, 
@@ -56,7 +57,7 @@ const Map: React.FC<MapProps> = ({
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<maplibregl.Map | null>(null);
   const [showStyleSettings, setShowStyleSettings] = useState(false);
-  const [selectedMapStyle, setSelectedMapStyle] = useState('osm-standard');
+  const [selectedMapStyle, setSelectedMapStyle] = useState('osm-carto');
   
   // Default styles
   const [geoJsonStyle, setGeoJsonStyle] = useState<MapStyle>({
@@ -183,6 +184,18 @@ const Map: React.FC<MapProps> = ({
       }
     }
   }, [monopiles, tableIdColumn, monopileStyle]);
+
+  // Filter GeoJSON features by search filter
+  useEffect(() => {
+    if (!map.current || !map.current.loaded() || !geoJsonData || !geoJsonIdColumn || filteredIds.length === 0) return;
+    
+    try {
+      // Apply filtering to GeoJSON layer without recentering the map
+      filterGeoJsonByProperty(map.current, geoJsonIdColumn, filteredIds);
+    } catch (error) {
+      console.error('Error filtering GeoJSON features:', error);
+    }
+  }, [filteredIds, geoJsonIdColumn, geoJsonData]);
 
   // Filter monopiles based on search
   useEffect(() => {
